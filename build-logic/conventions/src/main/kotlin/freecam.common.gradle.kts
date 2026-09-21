@@ -29,6 +29,14 @@ tasks.named<Jar>("jar") {
 }
 
 repositories {
+    // Fletching Table adds unfiltered repositories; an outage there must not
+    // prevent resolving unrelated libraries from their own repositories.
+    withType<MavenArtifactRepository>().configureEach {
+        if (url.host == "maven.kikugie.dev") {
+            content { includeGroupAndSubgroups("dev.kikugie") }
+        }
+    }
+
     maven("https://maven.neoforged.net/releases") {
         name = "NeoForge"
         content { includeGroup("net.neoforged") }
