@@ -21,11 +21,10 @@ val forgeVersion = requireNotNull(meta.deps["forge_version"]) {
     "Missing deps.forge_version for ${project.path}"
 }
 
+val supportsJarJar = sc.eval(forgeVersion, ">= 40.1.60")
+
 val refmapName = "mixins.freecam.refmap.json"
-val mixinConfigNames = listOf(
-    "freecam-common.mixins.json",
-    "freecam-forge.mixins.json",
-)
+val mixinConfigNames = listOf("freecam-common.mixins.json", "freecam-forge.mixins.json")
 
 stonecutter replacements {
     string(sc.eval(forgeVersion, ">= 41")) {
@@ -81,7 +80,7 @@ configurations.create("finalBundle") {
  * @param shadowJarConfig configuration for the `shadowJar` task, applied when Jar-in-Jar is not available
  */
 fun DependencyHandler.include(dependencyNotation: Any, shadowJarConfig: ShadowJar.() -> Unit) {
-    if (sc.eval(forgeVersion, ">=40.1.60")) {
+    if (supportsJarJar) {
         jarJar(dependencyNotation)
     } else {
         add("finalBundle", dependencyNotation)
@@ -93,6 +92,13 @@ dependencies {
     compileOnlyApi("org.jetbrains:annotations:26.0.2")
     annotationProcessor(libs.sponge.mixin) {
         artifact { classifier = "processor" }
+    }
+
+    annotationProcessor(libs.mixinextras.common)
+    implementation(libs.mixinextras.common)
+    // Bundle the MixinExtras we build against
+    include(libs.mixinextras.common) {
+        relocate("com.llamalad7.mixinextras", "${meta.group}.shadowed.mixinextras")
     }
 
     // Forge's ModListScreen renders the Mod logo at 50px high
@@ -138,11 +144,17 @@ legacyForge {
         register("client") {
             client()
             ideName = "Forge Client (${project.path})"
+
+            if (!supportsJarJar) {
+                // FIXME: ModDevGradle does not make MixinExtras available to IDE runs, so explicitly add it:
+                additionalRuntimeClasspathConfiguration.dependencies.add(libs.mixinextras.common.get())
+            }
         }
-//        register("server") {
-//            server()
-//            ideName = "Forge Server (${project.path})"
-//        }
+        register("server") {
+            server()
+            ideName = "Forge Server (${project.path})"
+            gameDirectory = layout.buildDirectory.dir("run-server")
+        }
     }
 
     mods {
@@ -195,12 +207,12 @@ val generateModsTomlTask = tasks.register<ForgeModsTomlTask>("generateModsToml")
         dependency(meta.id, "minecraft") {
             versionRange = meta.reqs["mc"]?.toMavenFormat()
             ordering = "NONE"
-            side = "CLIENT"
+            side = "BOTH"
         }
         dependency(meta.id, "forge") {
             versionRange = meta.reqs["forge_version"]?.toMavenFormat()
             ordering = "NONE"
-            side = "CLIENT"
+            side = "BOTH"
         }
         dependency(meta.id, "cloth_config") {
             versionRange = meta.reqs["cloth"]?.toMavenFormat()
@@ -212,6 +224,8 @@ val generateModsTomlTask = tasks.register<ForgeModsTomlTask>("generateModsToml")
 }
 
 tasks.processResources {
+    val mixinextras = libs.versions.mixinextras.get()
+
     from(generateModsTomlTask) {
         into("META-INF")
     }
@@ -219,11 +233,15 @@ tasks.processResources {
     rename("icon-100.png", "logo.png")
 
     filesMatching("freecam-forge.mixins.json") {
-        expand("mixinCompatLevel" to "JAVA_${meta.javaVersion}")
+        expand(
+            "mixinCompatLevel" to "JAVA_${meta.javaVersion}",
+            "mixinExtrasMinVersion" to mixinextras,
+        )
     }
 
     inputs.properties(
         "java_version" to meta.javaVersion,
+        "mixinextras_version" to mixinextras,
         "mixinConfigs" to mixinConfigNames,
         "mixinRefmap" to refmapName,
     )
@@ -275,9 +293,16 @@ tasks.shadowJar {
         include("pack.mcmeta")
     }
 
+    mergeServiceFiles()
+
     finalizedBy("reobfShadowJar")
 }
 
 obfuscation {
     reobfuscate(tasks.shadowJar, sourceSets.main.get())
+}
+
+// Allow commands such as `stop` in the dedicated development server console.
+tasks.named<JavaExec>("runServer") {
+    standardInput = System.`in`
 }

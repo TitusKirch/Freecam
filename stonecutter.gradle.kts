@@ -70,9 +70,6 @@ stonecutter parameters {
         string(current.parsed >= "26.3-0") {
             replace("InputConstants.Type.KEYSYM", "InputConstants.Type.KEYBOARD")
         }
-        string(current.parsed >= "26.2") {
-            replace("renderHandsWithItems", "submitHandsWithItems")
-        }
         string(current.parsed >= "26.0") {
             replace("accessWidener v2 named", "accessWidener v2 official")
             replace("GuiGraphics", "GuiGraphicsExtractor")
@@ -82,12 +79,6 @@ stonecutter parameters {
         }
         string(current.parsed >= "1.21.11") {
             replace("ResourceLocation", "Identifier")
-            replace("input.jumping", "input.keyPresses.jump()")
-            replace("input.shiftKeyDown", "input.keyPresses.shift()")
-            replace("input.up", "input.keyPresses.forward()")
-            replace("input.down", "input.keyPresses.backward()")
-            replace("input.right", "input.keyPresses.right()")
-            replace("input.left", "input.keyPresses.left()")
         }
         string(current.parsed >= "1.20") {
             replace("canEnterPose(", "wouldNotSuffocateAtTargetPose(")
@@ -96,7 +87,7 @@ stonecutter parameters {
         string(current.parsed >= "1.19") {
             replace("new net.minecraft.network.chat.TranslatableComponent(", "Component.translatable(")
             replace("new net.minecraft.network.chat.TextComponent(", "Component.literal(")
-            replace("net.minecraft.network.chat.TextComponent.EMPTY", "Component.empty()")
+            replace("new net.minecraft.network.chat.TextComponent(\"\")", "Component.empty()")
         }
     }
 }
